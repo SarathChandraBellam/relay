@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+server/src/generated/
+agent/.venv/
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,23 @@
+{
+  "name": "relay",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A durable Postgres-backed runner between a CopilotKit UI and an agent API",
+  "scripts": {
+    "db:up": "docker compose up -d postgres",
+    "db:migrate": "pnpm --filter @relay/server db:migrate",
+    "dev:server": "pnpm --filter @relay/server dev",
+    "dev:web": "pnpm --filter @relay/web dev",
+    "dev:agent": "cd agent && uv run relay-agent",
+    "test": "pnpm --filter @relay/server test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "prisma",
+      "@prisma/engines"
+    ]
+  }
+}

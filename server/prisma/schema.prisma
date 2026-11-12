@@ -1,0 +1,120 @@
+// The runner's durable state. Three ideas live here:
+//
+//   Thread   one conversation; owns the event sequence counter
+//   Run      one execution of the agent on a thread; owns the lease
+//   Event    the append-only AG-UI event log, ordered per thread
+//
+// Thread status is never stored. It is derived from the latest run plus
+// whether that run's lease is still alive (see src/runner/status.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RunStatus {
+  running   // a server holds the lease and is driving the agent
+  stopping  // a stop was requested; the holder is winding down
+  parked    // ended while waiting for a person or a browser tool
+  resumed   // was parked, then claimed by exactly one later run
+  completed
+  cancelled
+  failed
+  orphaned  // the lease expired before the run reached an end state
+
+  @@map("run_status")
+}
+
+model Thread {
+  id        String   @id
+  ownerId   String   @default("") @map("owner_id")
+  agentId   String   @map("agent_id")
+  title     String?
+  /// Last event sequence handed out. Bumped under a row lock, so commit
+  /// order equals sequence order within a thread.
+  lastSeq   BigInt   @default(0) @map("last_seq")
+  runCount  Int      @default(0) @map("run_count")
+  /// Agent settings for this thread. A change takes effect on the next run.
+  settings        Json    @default("{}")
+  settingsVersion Int     @default(0) @map("settings_version")
+  /// Version of the settings the agent last ran with.
+  appliedSettingsVersion Int @default(0) @map("applied_settings_version")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  runs     Run[]
+  events   Event[]
+  messages ThreadMessage[]
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@map("threads")
+}
+
+model Run {
+  id       String    @id
+  threadId String    @map("thread_id")
+  /// 1, 2, 3 ... within the thread. The latest run is the highest number.
+  number   Int
+  status   RunStatus
+  /// "chat" for a browser request, "api" for a headless start.
+  trigger  String    @default("chat")
+  /// The run input, holding only the messages that were new for this run.
+  input    Json
+
+  /// Who is driving. Unique per server process start, so it doubles as the
+  /// fencing token: every write by the driver checks it.
+  leaseHolder    String?   @map("lease_holder")
+  /// Compared against the database clock only, never a server clock.
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+
+  stopRequestedAt DateTime? @map("stop_requested_at") @db.Timestamptz(3)
+
+  /// Set while parked: "approval" or "client_tool".
+  waitingFor     String? @map("waiting_for")
+  waitingPayload Json?   @map("waiting_payload")
+  /// On a run that picked up a parked run: the run it continued.
+  resumesRunId   String? @map("resumes_run_id")
+
+  error      String?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, number])
+  @@index([status, leaseExpiresAt])
+  @@map("runs")
+}
+
+model Event {
+  threadId  String   @map("thread_id")
+  seq       BigInt
+  runId     String   @map("run_id")
+  type      String
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, seq])
+  /// Finds the newest snapshot of a kind without scanning the log.
+  @@index([threadId, type, seq])
+  @@index([runId, seq])
+  @@map("events")
+}
+
+/// Every message id a thread has seen. Lets a run tell which of the
+/// messages the client sent are new.
+model ThreadMessage {
+  threadId  String @map("thread_id")
+  messageId String @map("message_id")
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, messageId])
+  @@map("thread_messages")
+}
