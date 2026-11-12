@@ -8,10 +8,10 @@
  */
 
 import { EventType, type AbstractAgent, type BaseEvent, type RunAgentInput } from "@ag-ui/client";
-import { finalizeRunEvents } from "@copilotkit/runtime/v2";
 import type { RunnerTimings } from "../config.ts";
 import type { Db } from "../db.ts";
 import { LeaseLostError, SaveFailedError, type RunnerError } from "./errors.ts";
+import { closeLog } from "./close-log.ts";
 import { EventWriter } from "./event-writer.ts";
 import type { Notifier } from "./notifier.ts";
 import type { RunStatus } from "./status.ts";
@@ -175,7 +175,7 @@ async function settle(args: SettleArgs): Promise<RunResult["status"]> {
   if (args.failure instanceof LeaseLostError) {
     // Another server has settled this run, or will. Writing now would
     // contradict it, so only this client's stream is closed.
-    emit(closeLog(seen, { interruptionMessage: args.failure.message }, args.failure.code));
+    emit(closeLog(seen, { message: args.failure.message, code: args.failure.code }));
     return "lease_lost";
   }
 
@@ -192,35 +192,21 @@ async function settle(args: SettleArgs): Promise<RunResult["status"]> {
       }
     }
     if (!recorded) {
-      emit(closeLog(seen, { interruptionMessage: new LeaseLostError().message }, "LEASE_LOST"));
+      emit(closeLog(seen, { message: new LeaseLostError().message, code: "LEASE_LOST" }));
       return "lease_lost";
     }
   } catch (error) {
     deps.log?.("could not record the end of the run", error);
-    emit(closeLog(seen, { interruptionMessage: new SaveFailedError(error).message }, "SAVE_FAILED"));
+    emit(closeLog(seen, { message: new SaveFailedError(error).message, code: "SAVE_FAILED" }));
     return "lease_lost";
   }
   emit(outcome.closingEvents);
   return outcome.status;
 }
 
-type FinalizeOptions = NonNullable<Parameters<typeof finalizeRunEvents>[1]>;
-
-/**
- * Ends whatever the log left open (messages, tool calls) and adds a terminal
- * event if there is none. Returns only the events it added.
- */
-function closeLog(seen: BaseEvent[], options: FinalizeOptions, errorCode?: string): BaseEvent[] {
-  const added = finalizeRunEvents([...seen], options) as BaseEvent[];
-  for (const event of added) {
-    if (event.type === EventType.RUN_ERROR && errorCode) (event as { code?: string }).code = errorCode;
-  }
-  return added;
-}
-
 const cancelled = (seen: BaseEvent[]): RunOutcome => ({
   status: "cancelled",
-  closingEvents: closeLog(seen, { stopRequested: true }),
+  closingEvents: closeLog(seen, { stopped: true }),
 });
 
 /** Reads the run's own events to decide between completed, parked and failed. */
@@ -229,10 +215,10 @@ function describe(seen: BaseEvent[], failure: RunnerError | null, agentError: st
     return {
       status: "failed",
       error: failure.message,
-      closingEvents: closeLog(seen, { interruptionMessage: failure.message }, failure.code),
+      closingEvents: closeLog(seen, { message: failure.message, code: failure.code }),
     };
   }
-  const closingEvents = closeLog(seen, agentError ? { interruptionMessage: agentError } : {});
+  const closingEvents = closeLog(seen, { message: agentError });
   const all = [...seen, ...closingEvents];
   const runError = all.find((event) => event.type === EventType.RUN_ERROR) as { message?: string } | undefined;
   if (runError) return { status: "failed", error: runError.message ?? agentError ?? "The run failed.", closingEvents };

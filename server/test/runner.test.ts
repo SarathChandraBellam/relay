@@ -240,8 +240,8 @@ describe("stop", () => {
   it("is honored once, from any server, and closes the log cleanly", async () => {
     const threadId = newThreadId();
     const never = deferred();
-    const run = start(a, threadId, new ScriptedAgent(() => [{ type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" } as BaseEvent, { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "partial" } as BaseEvent, { wait: never.promise }]), runInput(threadId, [userMessage("go")]));
-    await until(() => run.events.length >= 3);
+    const run = start(a, threadId, new ScriptedAgent(() => [{ type: EventType.STEP_STARTED, stepName: "model" } as BaseEvent, { type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" } as BaseEvent, { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "partial" } as BaseEvent, { wait: never.promise }]), runInput(threadId, [userMessage("go")]));
+    await until(() => run.events.length >= 4);
 
     // The run is driven by server A. The stop requests go through both.
     const answers = await Promise.all([b, a, b, a, b].map((server) => requestStop(server.db, threadId)));
@@ -249,7 +249,7 @@ describe("stop", () => {
 
     expect((await run.done).status).toBe("cancelled");
     const log = await stored(threadId);
-    expect(types(log).slice(-2)).toEqual([EventType.TEXT_MESSAGE_END, EventType.RUN_FINISHED]);
+    expect(types(log).slice(-3)).toEqual([EventType.TEXT_MESSAGE_END, EventType.STEP_FINISHED, EventType.RUN_FINISHED]);
     expect(await asClient(log)).toEqual([expect.objectContaining({ role: "user" }), expect.objectContaining({ id: "m1", content: "partial" })]);
   });
 
@@ -264,8 +264,8 @@ describe("when the driving server goes away", () => {
     // A server that never renews: to everyone else it looks exactly like a crash.
     const dying = await createServer({ leaseTtlMs: 300, leaseRenewMs: 60_000 });
     const release = deferred();
-    const run = start(dying, threadId, new ScriptedAgent(() => [{ type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" } as BaseEvent, { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "half an ans" } as BaseEvent, { wait: release.promise }, { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "wer" } as BaseEvent, { type: EventType.TEXT_MESSAGE_END, messageId: "m1" } as BaseEvent]), runInput(threadId, [userMessage("go")]));
-    await until(() => run.events.length >= 3);
+    const run = start(dying, threadId, new ScriptedAgent(() => [{ type: EventType.STEP_STARTED, stepName: "model" } as BaseEvent, { type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" } as BaseEvent, { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "half an ans" } as BaseEvent, { wait: release.promise }, { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "wer" } as BaseEvent, { type: EventType.TEXT_MESSAGE_END, messageId: "m1" } as BaseEvent]), runInput(threadId, [userMessage("go")]));
+    await until(() => run.events.length >= 4);
 
     // Before the sweep, readers already see that nobody is driving.
     await sleep(350);
@@ -274,7 +274,7 @@ describe("when the driving server goes away", () => {
     expect(await reapExpired(b.db, { threadId })).toBe(1);
     expect(await settled(threadId)).toBe("orphaned");
     const log = await stored(threadId);
-    expect(types(log).slice(-2)).toEqual([EventType.TEXT_MESSAGE_END, EventType.RUN_ERROR]);
+    expect(types(log).slice(-3)).toEqual([EventType.TEXT_MESSAGE_END, EventType.STEP_FINISHED, EventType.RUN_ERROR]);
     expect(log.at(-1)).toMatchObject({ code: "CONNECTION_LOST" });
 
     // The old driver wakes up and tries to carry on. Its writes are refused.

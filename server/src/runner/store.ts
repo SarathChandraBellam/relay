@@ -16,8 +16,8 @@
  */
 
 import { EventType, type BaseEvent, type Message, type RunAgentInput } from "@ag-ui/client";
-import { finalizeRunEvents } from "@copilotkit/runtime/v2";
 import type { Db, Tx } from "../db.ts";
+import { closeLog } from "./close-log.ts";
 import { AlreadyResumedError, ApprovalPendingError, LeaseLostError, ThreadBusyError } from "./errors.ts";
 import { TRANSITIONS, type RunStatus, type WaitingFor } from "./status.ts";
 
@@ -408,13 +408,7 @@ export async function reapExpired(db: Db, scope: { threadId?: string } = {}): Pr
     for (const run of expired) {
       const stopping = run.status === "stopping";
       const log = (await readRunEvents(tx, run.id)).map((stored) => stored.event);
-      const closing = finalizeRunEvents(
-        log,
-        stopping ? { stopRequested: true } : { interruptionMessage: CONNECTION_LOST },
-      ) as BaseEvent[];
-      for (const event of closing) {
-        if (event.type === EventType.RUN_ERROR) (event as { code?: string }).code = "CONNECTION_LOST";
-      }
+      const closing = closeLog(log, stopping ? { stopped: true } : { message: CONNECTION_LOST, code: "CONNECTION_LOST" });
       await tx.$executeRaw`
         UPDATE runs
         SET status = ${stopping ? "cancelled" : "orphaned"}::run_status, lease_expires_at = NULL,

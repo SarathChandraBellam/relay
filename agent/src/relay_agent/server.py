@@ -4,15 +4,17 @@
     GET  /health
 
 The agent keeps its own working state in LangGraph checkpoints. It knows
-nothing about threads lists, leases or replay; that is the runner's job.
+nothing about thread lists, leases or replay; that is the runner's job.
 """
 
 from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
+from dotenv import load_dotenv
 from ag_ui_langgraph import add_langgraph_fastapi_endpoint
 from copilotkit import LangGraphAGUIAgent
 from fastapi import FastAPI
@@ -30,10 +32,16 @@ def _mount(app: FastAPI, checkpointer) -> None:
     add_langgraph_fastapi_endpoint(app, agent, path="/agent")
 
 
+DEFAULT_DATABASE_URL = "postgresql://relay:relay@localhost:5432/relay_agent"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    database_url = os.getenv("DATABASE_URL")
-    if not database_url:
+    # Checkpoints go to Postgres so the agent can be restarted, or run as
+    # several copies, without losing a conversation or a pending approval.
+    # AGENT_DATABASE_URL=memory keeps them in the process instead.
+    database_url = os.getenv("AGENT_DATABASE_URL", DEFAULT_DATABASE_URL)
+    if database_url == "memory":
         _mount(app, InMemorySaver())
         yield
         return
@@ -55,6 +63,7 @@ def health() -> dict:
 
 
 def main() -> None:
+    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
     uvicorn.run(
         "relay_agent.server:app",
         host=os.getenv("AGENT_HOST", "127.0.0.1"),

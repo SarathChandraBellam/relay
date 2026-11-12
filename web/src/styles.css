@@ -1,0 +1,56 @@
+:root {
+  --relay-bg: #f6f7f9;
+  --relay-panel: #ffffff;
+  --relay-line: #e3e6ea;
+  --relay-text: #1c2430;
+  --relay-muted: #667085;
+  --relay-accent: #0f766e;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--relay-text);
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; background: var(--relay-bg); }
+button { font: inherit; cursor: pointer; border: 1px solid var(--relay-line); background: var(--relay-panel); border-radius: 8px; padding: 7px 12px; color: var(--relay-text); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--relay-accent); border-color: var(--relay-accent); color: #fff; }
+button.link { border: 0; background: none; padding: 0; color: var(--relay-muted); font-size: 12px; }
+
+.layout { display: grid; grid-template-columns: 280px 1fr; height: 100%; }
+.sidebar { background: var(--relay-panel); border-right: 1px solid var(--relay-line); padding: 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.brand { font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+.sidebar nav { margin-top: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.thread { padding: 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+.thread:hover { background: var(--relay-bg); }
+.thread.active { background: var(--relay-bg); border-color: var(--relay-line); }
+.thread-title { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.empty { color: var(--relay-muted); font-size: 13px; padding: 10px; }
+
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; background: var(--relay-panel); border-bottom: 1px solid var(--relay-line); }
+.header-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.instructions { display: flex; align-items: center; gap: 8px; padding: 8px 20px; background: var(--relay-panel); border-bottom: 1px solid var(--relay-line); }
+.instructions input { flex: 1; font: inherit; padding: 7px 10px; border: 1px solid var(--relay-line); border-radius: 8px; min-width: 0; }
+.hint { font-size: 12px; color: var(--relay-muted); white-space: nowrap; }
+.notice { padding: 10px 20px; font-size: 14px; border-bottom: 1px solid var(--relay-line); background: #fff8e6; color: #7a4b00; }
+.notice-connection_lost, .notice-error { background: #fdecec; color: #8a1c1c; }
+.chat { flex: 1; min-height: 0; position: relative; }
+.chat > * { height: 100%; }
+
+.badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eef0f3; color: var(--relay-muted); white-space: nowrap; }
+.badge-running { background: #e0f2fe; color: #075985; }
+.badge-stopping, .badge-waiting_approval, .badge-waiting_client_tool { background: #fff3d6; color: #7a4b00; }
+.badge-connection_lost, .badge-error { background: #fdecec; color: #8a1c1c; }
+
+.card { border: 1px solid var(--relay-line); border-radius: 10px; padding: 12px 14px; background: var(--relay-panel); margin: 8px 0; max-width: 460px; }
+.card-title { font-weight: 600; margin-bottom: 8px; }
+.approval pre { margin: 6px 0 0; padding: 8px; background: var(--relay-bg); border-radius: 6px; font-size: 12px; overflow-x: auto; }
+.approval-actions { display: flex; gap: 8px; margin-top: 10px; }
+.bar-row { display: grid; grid-template-columns: 90px 1fr 32px; align-items: center; gap: 8px; font-size: 13px; margin: 6px 0; }
+.bar-track { background: var(--relay-bg); border-radius: 4px; height: 12px; display: block; }
+.bar-fill { background: var(--relay-accent); border-radius: 4px; height: 12px; display: block; }
+.bar-value { text-align: right; color: var(--relay-muted); }
+
+/* The chat ships its own button reset. These keep the cards readable inside it. */
+.card button { border: 1px solid var(--relay-line) !important; background: var(--relay-panel) !important; color: var(--relay-text) !important; border-radius: 8px; padding: 7px 14px; }
+.card button.primary { background: var(--relay-accent) !important; border-color: var(--relay-accent) !important; color: #fff !important; }

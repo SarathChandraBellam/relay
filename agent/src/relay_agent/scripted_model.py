@@ -52,7 +52,8 @@ class ScriptedChatModel(BaseChatModel):
     def _plan(self, messages: list[BaseMessage]) -> AIMessage:
         last = messages[-1]
         if isinstance(last, ToolMessage):
-            return AIMessage(content=f"Done. The `{last.name or 'tool'}` tool returned: {_text(last)}")
+            source = f"`{last.name}`" if last.name else "The tool"
+            return AIMessage(content=f"Done. {source} returned: {_text(last)}")
 
         prompt = _text(next((m for m in reversed(messages) if isinstance(m, HumanMessage)), last))
         lowered = prompt.lower()
